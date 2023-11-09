@@ -155,7 +155,7 @@ Puma::Plugin.create do
       end
 
     @stats_logger = ::PumaStatsLogger.new(@log_writer)
-    @interval_seconds = ENV.fetch("PUMA_STATS_INTERVAL_SECONDS", "20").to_f
+    @interval_seconds = ENV.fetch("PUMA_STATS_INTERVAL_SECONDS", "60").to_f
     @log_writer.debug "Puma Stats Logger: enabled (interval: #{@interval}s)"
 
     register_hooks
