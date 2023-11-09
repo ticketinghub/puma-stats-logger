@@ -34,11 +34,19 @@ class PumaStats
     end
   end
 
-  def idle_workers
-    booted_workers - running_workers
+  def busy_workers
+    if clustered?
+      @stats[:worker_status].count { |s| busy_worker?(s) }
+    else
+      ((@stats.fetch(:max_threads, 0) - @stats.fetch(:pool_capacity, 0)) > 0) ? 1 : 0
+    end
   end
 
-  def running
+  def idle_workers
+    booted_workers - busy_workers
+  end
+
+  def running_threads
     if clustered?
       @stats[:worker_status].map { |s| s[:last_status].fetch(:running, 0) }.inject(0, &:+)
     else
@@ -78,12 +86,30 @@ class PumaStats
     end
   end
 
-  def percent_busy
-    (1 - (pool_capacity / max_threads.to_f)) * 100
+  def percent_busy_threads
+    (1 - (idle_threads / max_threads.to_f)) * 100
+  end
+
+  def busy_threads
+    max_threads - idle_threads
+  end
+
+  def idle_threads
+    pool_capacity
   end
 
   def requests_delta
     requests_count - @previous_requests_count
+  end
+
+  private
+
+  def busy_worker?(worker_stats)
+    busy_threads_for_worker(worker_stats) > 0
+  end
+
+  def busy_threads_for_worker(worker_stats)
+    worker_stats[:last_status].fetch(:max_threads, 0) - worker_stats[:last_status].fetch(:pool_capacity, 0)
   end
 end
 
@@ -103,11 +129,13 @@ class PumaStatsLogger
     entry = String.new("Puma Stats: ")
     entry << "puma.workers=#{stats.workers} "
     entry << "puma.booted_workers=#{stats.booted_workers} "
-    entry << "puma.busy_workers=#{stats.running_workers} "
+    entry << "puma.running_workers=#{stats.running_workers} "
+    entry << "puma.busy_workers=#{stats.busy_workers} "
     entry << "puma.idle_workers=#{stats.idle_workers} "
-    entry << "puma.busy_threads=#{stats.running} "
-    entry << "puma.idle_threads=#{stats.pool_capacity} "
-    entry << "puma.percent_busy_threads=#{stats.percent_busy.round(2) } "
+    entry << "puma.running_threads=#{stats.running_threads} "
+    entry << "puma.busy_threads=#{stats.busy_threads} "
+    entry << "puma.idle_threads=#{stats.idle_threads} "
+    entry << "puma.percent_busy_threads=#{stats.percent_busy_threads.round(2) } "
     entry << "puma.backlog=#{stats.backlog} "
     entry << "puma.max_threads=#{stats.max_threads} "
     entry << "puma.requests_count=#{stats.requests_count} "
